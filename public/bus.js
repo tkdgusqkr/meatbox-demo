@@ -1,12 +1,29 @@
-// 정적(서버리스) 모드 — 시뮬레이션을 브라우저 안에서 구동하고,
-// 같은 브라우저의 다른 창들과 BroadcastChannel 로 실시간 동기화한다.
-// 리더 선출: localStorage 하트비트. 리더 창이 닫히면 다른 창이 승계하며 시뮬레이션은 초기화된다.
+// 정적(서버리스) 모드 동기화 버스.
+// - 같은 브라우저의 창들: BroadcastChannel
+// - 다른 기기(폰·노트북): "방 코드"로 공개 MQTT 브로커(WebSocket)를 중계 — 서버·계정 불필요
+// 리더 선출: 메시지 하트비트. 가장 먼저 열린 창(가장 작은 ID)이 시뮬레이션을 구동하고,
+// 리더가 사라지면 다른 창/기기가 승계한다 (시뮬레이션은 초기화됨).
 window.TMSBus = (() => {
+  const qs2 = new URLSearchParams(location.search);
+  let ROOM = (qs2.get('room') || '').trim().toUpperCase();
+  try {
+    if (ROOM) localStorage.setItem('tms-room', ROOM);
+    else ROOM = (localStorage.getItem('tms-room') || '').trim().toUpperCase();
+  } catch {}
+  const BROKERS = qs2.get('broker') ? [qs2.get('broker')] : [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://test.mosquitto.org:8081',
+  ];
+  const TOPIC = 'meatbox-tms/v1/' + ROOM;
   const CH = 'BroadcastChannel' in window ? new BroadcastChannel('meatbox-tms') : null;
   const ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const LEAD_KEY = 'tms-leader';
   const ACCOUNTS = window.TMSSim.ACCOUNTS;
+
   let sim = null, myAcct = null, onStateCb = null, lastFull = null;
+  let mq = null, mqState = ROOM ? 'connecting' : 'off'; // off | connecting | on | error
+  let lastBeat = Date.now(); // 시작 후 유예 시간을 두고 리더 승격 (기존 리더 탐지)
+  const statusCbs = [];
 
   // ---- 서버(server.js)와 동일한 역할별 스코핑 ----
   function scoped(full, acct) {
@@ -47,46 +64,75 @@ window.TMSBus = (() => {
     return acct.role === 'controller' || acct.role === 'admin';
   }
 
+  function emitStatus() {
+    const s = { room: ROOM || null, net: ROOM ? mqState : 'off', leader: !!sim };
+    statusCbs.forEach((f) => { try { f(s); } catch {} });
+  }
+
   function dispatch(full) {
     lastFull = full;
     if (onStateCb && myAcct && ACCOUNTS[myAcct]) onStateCb(scoped(full, ACCOUNTS[myAcct]));
   }
 
-  function publish() {
+  function sendMsg(m) {
+    m.from = ID;
+    if (CH) { try { CH.postMessage(m); } catch {} }
+    if (mq && mqState === 'on' && ROOM) { try { mq.publish(TOPIC, JSON.stringify(m)); } catch {} }
+  }
+
+  function publishState() {
     if (!sim) return;
     const full = sim.snapshot();
-    if (CH) CH.postMessage({ type: 'state', full });
-    dispatch(full); // BroadcastChannel 은 자기 자신에게는 전달되지 않음
+    sendMsg({ type: 'state', full });
+    dispatch(full); // 자기 자신에게는 채널 메시지가 오지 않음
   }
 
-  function beat() {
-    try { localStorage.setItem(LEAD_KEY, JSON.stringify({ id: ID, t: Date.now() })); } catch {}
-  }
-
-  function leaderStep() {
-    let j = null;
-    try { j = JSON.parse(localStorage.getItem(LEAD_KEY) || 'null'); } catch {}
-    const fresh = j && Date.now() - j.t < 3500;
-    if (sim) {
-      if (fresh && j.id !== ID && j.id < ID) { sim = null; return; } // 리더 충돌 시 양보
-      beat(); sim.tick(); publish();
-    } else if (!fresh) {
-      sim = window.TMSSim.createSim(); // 리더 승격 (첫 실행 또는 이전 리더 창 종료)
-      beat(); publish();
-    }
-  }
-
-  if (CH) CH.onmessage = (e) => {
-    const m = e.data;
-    if (m.type === 'state') { if (!sim) dispatch(m.full); }
-    else if (m.type === 'cmd' && sim) {
+  function handle(m) {
+    if (!m || m.from === ID) return; // MQTT 는 자기 발행분도 되돌아온다
+    if (m.type === 'beat' || m.type === 'state') {
+      if (sim && m.from < ID) { sim = null; emitStatus(); }   // 리더 충돌: 먼저 열린 쪽에 양보
+      if (sim && m.from > ID) return;                          // 상대가 곧 양보할 것
+      lastBeat = Date.now();
+      if (m.type === 'state') dispatch(m.full);
+    } else if (m.type === 'cmd' && sim) {
       const acct = ACCOUNTS[m.acct];
-      if (allowed(acct, m.cmd, m.args)) { sim.command(m.cmd, m.args); publish(); }
+      if (allowed(acct, m.cmd, m.args)) { sim.command(m.cmd, m.args); publishState(); }
     }
-  };
+  }
 
-  setInterval(leaderStep, 1000);
-  leaderStep();
+  function step() {
+    if (sim) {
+      sendMsg({ type: 'beat' });
+      sim.tick();
+      publishState();
+    } else if (Date.now() - lastBeat > 3500 + Math.random() * 1000) {
+      sim = window.TMSSim.createSim(); // 리더 승격 (첫 창이거나 이전 리더 종료)
+      emitStatus();
+      publishState();
+    }
+  }
+
+  function connectMqtt(i = 0) {
+    if (!ROOM || !window.mqtt) { if (ROOM) { mqState = 'error'; emitStatus(); } return; }
+    if (i >= BROKERS.length) { mqState = 'error'; emitStatus(); return; }
+    mqState = 'connecting'; emitStatus();
+    const c = window.mqtt.connect(BROKERS[i], {
+      clientId: 'tms_' + ID, clean: true, connectTimeout: 6000, reconnectPeriod: 3000,
+    });
+    let opened = false;
+    c.on('connect', () => { opened = true; mq = c; mqState = 'on'; c.subscribe(TOPIC); emitStatus(); });
+    c.on('message', (t, payload) => { try { handle(JSON.parse(payload.toString())); } catch {} });
+    c.on('error', () => { if (!opened) { try { c.end(true); } catch {} connectMqtt(i + 1); } });
+    c.on('close', () => { if (opened && mqState === 'on') { mqState = 'connecting'; emitStatus(); } });
+  }
+
+  if (CH) CH.onmessage = (e) => handle(e.data);
+
+  // 정적 모드에서만 구동 (서버 모드에서는 server.js 가 담당)
+  if (window.TMS_STATIC) {
+    setInterval(step, 1000);
+    connectMqtt();
+  }
 
   return {
     connect(acctId, onState) {
@@ -96,10 +142,28 @@ window.TMSBus = (() => {
     async cmd(acctId, command, args = {}) {
       const acct = ACCOUNTS[acctId];
       if (!allowed(acct, command, args)) return { ok: false, msg: '권한이 없습니다' };
-      if (sim) { const out = sim.command(command, args); publish(); return out; }
-      if (CH) { CH.postMessage({ type: 'cmd', acct: acctId, cmd: command, args }); return { ok: true }; }
-      return { ok: false, msg: '동기화 채널을 사용할 수 없습니다' };
+      if (sim) { const out = sim.command(command, args); publishState(); return out; }
+      sendMsg({ type: 'cmd', acct: acctId, cmd: command, args });
+      return { ok: true };
     },
     accounts() { return Object.values(ACCOUNTS); },
+    room() { return ROOM || null; },
+    setRoom(code) {
+      const c = (code || '').trim().toUpperCase();
+      try {
+        if (c) localStorage.setItem('tms-room', c);
+        else localStorage.removeItem('tms-room');
+      } catch {}
+      const u = new URL(location.href);
+      if (c) u.searchParams.set('room', c); else u.searchParams.delete('room');
+      location.href = u.toString(); // 새 방 설정은 새로고침으로 적용
+    },
+    makeRoom() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let c = '';
+      for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
+      return c;
+    },
+    onStatus(cb) { statusCbs.push(cb); emitStatus(); },
   };
 })();

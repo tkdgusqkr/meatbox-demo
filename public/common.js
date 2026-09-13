@@ -43,6 +43,18 @@ if (window.TMS_STATIC && 'serviceWorker' in navigator && location.protocol.start
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
+// 기기 간 동기화 상태 배지 (방 코드가 설정된 경우에만 표시)
+if (window.TMS_STATIC && window.TMSBus && TMSBus.room()) {
+  const badge = document.createElement('div');
+  badge.style.cssText = 'position:fixed;bottom:14px;left:14px;z-index:9998;font-size:11.5px;font-weight:700;' +
+    'padding:5px 12px;border-radius:99px;background:#212836;color:#fff;opacity:.92;font-family:inherit';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(badge));
+  TMSBus.onStatus((s) => {
+    const net = { on: '🟢 연결됨', connecting: '🟡 연결 중…', error: '🔴 중계 연결 실패', off: '' }[s.net] || '';
+    badge.textContent = `📶 방 ${s.room} · ${net}${s.leader ? ' · 이 창이 시뮬레이션 구동 중' : ''}`;
+  });
+}
+
 // 간단 토스트
 function toast(text) {
   let t = document.getElementById('toast');

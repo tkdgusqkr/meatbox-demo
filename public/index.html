@@ -30,6 +30,15 @@ h1{font-size:30px;font-weight:800}
 .rl.admin{background:var(--blue-soft);color:var(--blue)}
 .rl.controller{background:var(--surface-2);color:var(--ink-2)}
 .hint{margin-top:36px;font-size:13px;color:var(--ink-2);border-left:3px solid var(--blue);padding-left:14px}
+.sync-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:28px}
+.sync-hd{font-weight:800;font-size:15px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.sync-hd .beta{font-size:10.5px;font-weight:700;background:var(--blue-soft);color:var(--blue);border-radius:6px;padding:1px 8px}
+.sync-bd{font-size:13px;color:var(--ink-2);margin-bottom:12px}
+.sync-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sync-row input{font-family:"IBM Plex Mono",monospace;font-size:15px;letter-spacing:.14em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:8px;padding:8px 12px;width:190px;background:var(--paper);color:var(--ink)}
+.room-chip{font-size:13px;background:var(--green-soft);color:var(--green);border-radius:8px;padding:6px 14px}
+.room-chip b{font-family:"IBM Plex Mono",monospace;letter-spacing:.14em}
 </style>
 </head>
 <body>
@@ -37,11 +46,31 @@ h1{font-size:30px;font-weight:800}
   <div class="eyebrow">MEATBOX TMS DEMO</div>
   <h1>미트박스 배송 트래킹 &amp; 다이나믹 ETA</h1>
   <p class="lede">계정을 선택해 접속하세요. 고객은 본인 주문만, 기사는 본인 배차만 보이고, 관리자는 전체를 실제 지도에서 관제합니다. 창을 여러 개 띄워 서로 다른 계정으로 동시에 접속해 보세요.</p>
+
+  <div class="sync-card" id="syncCard" hidden>
+    <div class="sync-hd">📶 기기 간 동기화 <span class="beta">무료 중계</span></div>
+    <div class="sync-bd">
+      폰과 노트북을 함께 쓰려면 <b>모든 기기에서 같은 방 코드</b>로 참여하세요.
+      노트북에서 방을 만들고, 폰에서 이 페이지를 열어 코드를 입력하면 됩니다.
+    </div>
+    <div class="sync-row" id="syncOff">
+      <input id="roomInput" maxlength="6" placeholder="방 코드 (예: K7M2QX)" autocapitalize="characters" autocomplete="off">
+      <button class="blue" id="btnJoin">참여</button>
+      <button class="primary" id="btnMake">새 방 만들기</button>
+    </div>
+    <div class="sync-row" id="syncOn" hidden>
+      <span class="room-chip">방 <b id="roomCode">—</b></span>
+      <span id="roomNet" style="font-size:12.5px;color:var(--ink-2)">연결 중…</span>
+      <button id="btnLeave">동기화 해제</button>
+    </div>
+  </div>
+
   <div id="roles"></div>
   <p class="hint">시연 순서: <b>컨트롤러</b> 창에서 MFC 스캔 → 배송 출발 → 이벤트 주입 순으로 진행합니다. 상세 시나리오는 <span class="mono">docs/demo-scenario.md</span> 참고.</p>
 </div>
 <script src="static-flag.js"></script>
 <script src="sim-web.js"></script>
+<script src="vendor/mqtt/mqtt.min.js"></script>
 <script src="bus.js"></script>
 <script src="common.js"></script>
 <script>
@@ -69,12 +98,42 @@ getAccounts().then(list => {
       b.innerHTML = `<span class="rl ${role}">${ROLE_NAMES[role]}</span><span class="nm"></span><span class="ds"></span>`;
       b.querySelector('.nm').textContent = a.shop ? `${a.name} · ${a.shop}` : a.name;
       b.querySelector('.ds').textContent = a.desc || '';
-      b.onclick = () => location.href = ROLE_META[role].page + '?acct=' + a.id;
+      b.onclick = () => {
+        const room = (window.TMS_STATIC && TMSBus.room()) ? '&room=' + TMSBus.room() : '';
+        location.href = ROLE_META[role].page + '?acct=' + a.id + room;
+      };
       g.appendChild(b);
     }
     root.appendChild(g);
   }
 });
+
+// 기기 간 동기화 카드 (정적 모드에서만 노출)
+if (window.TMS_STATIC) {
+  const card = document.getElementById('syncCard');
+  card.hidden = false;
+  const room = TMSBus.room();
+  document.getElementById('syncOff').hidden = !!room;
+  document.getElementById('syncOn').hidden = !room;
+  if (room) {
+    document.getElementById('roomCode').textContent = room;
+    TMSBus.onStatus((s) => {
+      document.getElementById('roomNet').textContent =
+        { on: '🟢 중계 서버 연결됨 — 다른 기기에서 같은 코드로 참여하세요',
+          connecting: '🟡 중계 서버 연결 중…',
+          error: '🔴 중계 서버 연결 실패 — 네트워크를 확인하세요' }[s.net] || '';
+    });
+  }
+  document.getElementById('btnMake').onclick = () => TMSBus.setRoom(TMSBus.makeRoom());
+  document.getElementById('btnJoin').onclick = () => {
+    const v = document.getElementById('roomInput').value.trim();
+    if (v.length >= 4) TMSBus.setRoom(v); else toast('방 코드를 4자 이상 입력하세요');
+  };
+  document.getElementById('roomInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btnJoin').click();
+  });
+  document.getElementById('btnLeave').onclick = () => TMSBus.setRoom('');
+}
 </script>
 </body>
 </html>
