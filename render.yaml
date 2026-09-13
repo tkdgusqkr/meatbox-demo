@@ -1,0 +1,13 @@
+# Render 무료 플랜 배포 설정 (서버 모드 — 여러 기기 실시간 동기화)
+# 사용법: https://render.com → GitHub 로그인 → New → Blueprint → 이 리포 선택
+# 무료 플랜은 15분 유휴 시 잠들며, 다시 깨우는 데 30초~1분 걸린다 (시연 전에 미리 접속 권장).
+services:
+  - type: web
+    name: meatbox-tms-demo
+    runtime: node
+    plan: free
+    branch: claude/meatbox-app-inquiry-p8224o
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    autoDeploy: true
