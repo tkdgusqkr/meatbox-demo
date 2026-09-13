@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>미트박스 TMS 시연 컨트롤러</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="common.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C0392F">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+.wrap{max-width:760px;margin:0 auto;padding:20px 18px 80px}
+.clockbig{
+  background:var(--ink);color:#fff;border-radius:14px;padding:16px 22px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px;
+}
+.clockbig .t{font-family:"IBM Plex Mono",monospace;font-size:38px;font-weight:500;line-height:1}
+.clockbig .sub{font-size:12.5px;opacity:.75}
+.clockbig .spd{margin-left:auto;display:flex;gap:6px;align-items:center}
+.clockbig .spd button{padding:5px 10px;font-size:12px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff}
+.clockbig .spd button.on{background:var(--accent);border-color:var(--accent)}
+.scene{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:12px}
+.scene .hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.scene .no{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:13px;flex:none}
+.scene .hd b{font-size:14.5px}
+.scene .hd .desc{font-size:12px;color:var(--ink-2)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.vrow{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.vcard{flex:1;min-width:240px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:13px}
+.vcard b{display:block;margin-bottom:2px}
+.vcard .mono{font-size:12px;color:var(--ink-2)}
+.danger{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">MEAT<b>BOX</b> TMS — 시연 컨트롤러</span>
+  <span class="who">시나리오 이벤트를 주입하는 리모컨 · 다른 창의 고객/기사/관제 화면과 실시간 동기화</span>
+  <a href="./">계정 전환</a>
+</div>
+<div class="wrap">
+
+  <div class="clockbig">
+    <div><div class="t mono" id="clock">--:--</div><div class="sub">시뮬레이션 시각 (새벽 배송)</div></div>
+    <div class="spd">
+      <button id="btnPause">⏸ 일시정지</button>
+      <button data-spd="10">x10</button><button data-spd="30" class="on">x30</button><button data-spd="60">x60</button>
+      <button data-skip="10">+10분</button><button data-skip="30">+30분</button>
+    </div>
+  </div>
+
+  <div class="vrow" id="vrow"></div>
+
+  <div class="scene">
+    <div class="hd"><span class="no">1</span><b>MFC 출고 준비</b><span class="desc">스캔 이벤트로 상태 자동 전환 (22건 일괄)</span></div>
+    <div class="btns">
+      <button id="sPick" class="blue">피킹 스캔</button>
+      <button id="sLabel" class="blue">라벨 부착 스캔</button>
+      <button id="sLoad" class="blue">상차 스캔</button>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="hd"><span class="no">2</span><b>배송 출발</b><span class="desc">차량 2대 동시 출발 · 최초 ETA 산출 · 출발 알림 발송</span></div>
+    <div class="btns"><button id="sDepart" class="primary">🚚 배송 출발 (성동·광진)</button></div>
+  </div>
+
+  <div class="scene">
+    <div class="hd"><span class="no">4</span><b>ETA 재계산 트리거 ① — 교통 이슈</b><span class="desc">성수대교 진입로 사고 · 성동 01호차 영향</span></div>
+    <div class="btns"><button id="sIncident" class="danger">⚠ 성수대교 사고 주입</button></div>
+  </div>
+
+  <div class="scene">
+    <div class="hd"><span class="no">5</span><b>ETA 재계산 트리거 ②·③ — 기사 이벤트</b><span class="desc">순서 변경(다음다음 착지 후순위) · 하차 지연</span></div>
+    <div class="btns">
+      <button id="sReorder">↕ 배송 순서 변경 (성동)</button>
+      <button id="sDwell">⏱ 하차 지연 +15분 (성동)</button>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="hd"><span class="no">·</span><b>보조 조작</b><span class="desc">리허설·진행 보조용</span></div>
+    <div class="btns">
+      <button data-force="v1">성동 다음 착지 강제 완료</button>
+      <button data-force="v2">광진 다음 착지 강제 완료</button>
+      <button id="sAutoV1">성동 자동 완료: OFF</button>
+      <button id="sReset" class="danger">↺ 전체 리셋</button>
+    </div>
+  </div>
+
+</div>
+<script src="static-flag.js"></script>
+<script src="sim-web.js"></script>
+<script src="vendor/mqtt/mqtt.min.js"></script>
+<script src="bus.js"></script>
+<script src="common.js"></script>
+<script>
+requireAcct();
+let autoV1 = false;
+
+document.getElementById('sPick').onclick = () => cmd('scan', { step: 'PICK' });
+document.getElementById('sLabel').onclick = () => cmd('scan', { step: 'LABEL' });
+document.getElementById('sLoad').onclick = () => cmd('scan', { step: 'LOAD' });
+document.getElementById('sDepart').onclick = () => cmd('depart');
+document.getElementById('sIncident').onclick = () => cmd('incident');
+document.getElementById('sReorder').onclick = () => cmd('reorder', { vehicleId: 'v1' });
+document.getElementById('sDwell').onclick = () => cmd('dwell', { vehicleId: 'v1', min: 15 });
+document.getElementById('sReset').onclick = () => { if (confirm('시뮬레이션을 처음부터 다시 시작할까요?')) cmd('reset'); };
+document.getElementById('sAutoV1').onclick = () => cmd('auto', { vehicleId: 'v1', on: !autoV1 });
+document.querySelectorAll('[data-force]').forEach((b) => b.onclick = () => cmd('force', { vehicleId: b.dataset.force }));
+document.querySelectorAll('[data-skip]').forEach((b) => b.onclick = () => cmd('skip', { min: +b.dataset.skip }));
+document.querySelectorAll('[data-spd]').forEach((b) => b.onclick = () => cmd('speed', { value: +b.dataset.spd }));
+
+let paused = false;
+document.getElementById('btnPause').onclick = () => cmd(paused ? 'resume' : 'pause');
+
+connect((st) => {
+  document.getElementById('clock').textContent = st.clock;
+  paused = !st.running;
+  document.getElementById('btnPause').textContent = paused ? '▶ 재개' : '⏸ 일시정지';
+  document.querySelectorAll('[data-spd]').forEach((b) => b.classList.toggle('on', +b.dataset.spd === st.speed));
+
+  // 단계별 버튼 활성화
+  document.getElementById('sPick').disabled = st.phase !== 'MFC';
+  document.getElementById('sLabel').disabled = st.phase !== 'PICK';
+  document.getElementById('sLoad').disabled = st.phase !== 'LABEL';
+  document.getElementById('sDepart').disabled = st.phase !== 'LOAD';
+  const out = st.phase === 'OUT';
+  ['sIncident', 'sReorder', 'sDwell'].forEach((id) => document.getElementById(id).disabled = !out);
+  document.getElementById('sIncident').disabled = !out || !!st.incident;
+
+  const v1 = st.vehicles.find((v) => v.id === 'v1');
+  autoV1 = v1.auto;
+  document.getElementById('sAutoV1').textContent = '성동 자동 완료: ' + (autoV1 ? 'ON' : 'OFF');
+
+  document.getElementById('vrow').innerHTML = st.vehicles.map((v) => {
+    const stateLabel = { MFC: 'MFC 대기', RUN: '이동 중', STOP: '하차 중', DONE: '운행 종료' }[v.state];
+    return `<div class="vcard" style="border-left:4px solid ${v.color}">
+      <b>${esc(v.name)} · ${esc(v.driver)} <span class="badge ${v.state === 'STOP' ? 'red' : v.state === 'DONE' ? 'green' : 'blue'}">${stateLabel}</span></b>
+      <span class="mono">진행 ${v.done}/${v.total} · ${v.auto ? '자동 완료' : '기사 앱 수동 체크'}${v.trafficMult > 1 ? ' · <span style="color:var(--accent)">교통 지연 중</span>' : ''}</span>
+    </div>`;
+  }).join('');
+});
+</script>
+</body>
+</html>

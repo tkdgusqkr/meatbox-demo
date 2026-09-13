@@ -1,0 +1,14 @@
+{
+  "name": "미트박스 TMS 데모 — 배송 트래킹 & 다이나믹 ETA",
+  "short_name": "미트박스 TMS",
+  "description": "미트박스 전용차 배송 트래킹·다이나믹 ETA 데모 (고객·기사·관제 멀티 계정)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6F6F3",
+  "theme_color": "#C0392F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

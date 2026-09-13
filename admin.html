@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>미트박스 TMS 관제 센터</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C0392F">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{background:var(--surface-2);border-radius:8px;padding:3px 12px;font-size:12.5px}
+.stat b{font-family:"IBM Plex Mono",monospace}
+.alert-strip{background:var(--accent);color:#fff;padding:7px 18px;font-size:13px;font-weight:700;display:flex;gap:10px;align-items:center}
+.layout{display:flex;gap:14px;padding:14px 18px;height:calc(100vh - 112px);min-height:520px}
+@media (max-width:900px){.layout{flex-direction:column;height:auto}}
+#map{height:100%;min-height:420px}
+.map-col{flex:1.35;display:flex;flex-direction:column;gap:10px;min-width:0}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.panel{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:none;border-radius:0;background:none;padding:11px 14px;font-size:13px;color:var(--ink-2);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button .cnt{font-family:"IBM Plex Mono",monospace;font-size:11px;background:var(--surface-2);border-radius:99px;padding:0 6px;margin-left:4px}
+.tabbody{flex:1;overflow-y:auto;padding:0}
+.tabbody.pad{padding:14px 16px}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--surface-2)}
+.ev{padding:9px 16px;border-bottom:1px solid var(--line);font-size:12.5px;display:flex;gap:10px}
+.ev .t{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);flex:none}
+.ev.alert{background:var(--accent-soft)}
+.ev.alert .txt{color:var(--accent);font-weight:700}
+.notif-row{padding:8px 16px;border-bottom:1px solid var(--line);font-size:12.5px}
+.notif-row .hd{display:flex;gap:8px;align-items:center}
+.notif-row .hd .t{font-family:"IBM Plex Mono",monospace;color:var(--ink-2)}
+.notif-row .bd{color:var(--ink-2);font-size:12px}
+/* 정확도 리포트 */
+.kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.kpi{flex:1;min-width:130px;background:var(--surface-2);border-radius:10px;padding:10px 14px}
+.kpi b{font-family:"IBM Plex Mono",monospace;font-size:22px;display:block}
+.kpi span{font-size:11.5px;color:var(--ink-2)}
+.reason{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-bottom:8px}
+.reason .bar{flex:1;height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.reason .bar i{display:block;height:100%;background:var(--blue);border-radius:99px}
+.reason .pct{font-family:"IBM Plex Mono",monospace;width:38px;text-align:right}
+/* 상세 모달 */
+.modal-bg{position:fixed;inset:0;background:rgba(33,40,54,.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);border-radius:14px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;padding:20px 22px}
+.modal h3{font-size:16px;margin-bottom:4px}
+.photo-ph{margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:18px;text-align:center;background:var(--surface-2);font-size:13px;color:var(--ink-2)}
+.photo-ph .door{font-size:40px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">MEAT<b>BOX</b> TMS 관제 센터</span>
+  <span class="clock" id="clock">--:--</span>
+  <div class="stats">
+    <span class="stat">배송 <b id="stDone">0</b>/<b id="stTotal">22</b></span>
+    <span class="stat">차량 <b>2</b>대 운행</span>
+    <span class="stat">알림 발송 <b id="stNotif">0</b>건</span>
+  </div>
+  <span class="who" id="whoami">—</span>
+  <a href="./">계정 전환</a>
+</div>
+<div class="alert-strip" id="alertStrip" hidden>⚠ <span id="alertText"></span></div>
+
+<div class="layout">
+  <div class="map-col">
+    <div class="mapbox" style="flex:1"><div id="map"></div></div>
+    <div class="legend">
+      <span><i style="background:#C0392F"></i>성동 01호차 (박 기사)</span>
+      <span><i style="background:#33608F"></i>광진 02호차 (최 기사)</span>
+      <span><i style="background:#2E7D4F"></i>배송 완료 착지</span>
+      <span>🏭 성동 MFC</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="on" data-tab="board">배송 현황</button>
+      <button data-tab="events">이벤트 로그<span class="cnt" id="cntEv">0</span></button>
+      <button data-tab="notifs">알림 발송<span class="cnt" id="cntNo">0</span></button>
+      <button data-tab="report">정확도 리포트</button>
+    </div>
+    <div class="tabbody" id="tab-board"><table>
+      <thead><tr><th>차량</th><th>순번</th><th>상호</th><th>동</th><th>박스</th><th>상태</th><th>ETA</th></tr></thead>
+      <tbody id="board"></tbody>
+    </table></div>
+    <div class="tabbody" id="tab-events" hidden></div>
+    <div class="tabbody" id="tab-notifs" hidden></div>
+    <div class="tabbody pad" id="tab-report" hidden>
+      <div class="kpi-row">
+        <div class="kpi"><b id="accNow">—</b><span>최근 적중률 (±15분 이내)</span></div>
+        <div class="kpi"><b>80%</b><span>목표 적중률</span></div>
+        <div class="kpi"><b id="accStart">—</b><span>30일 전 적중률</span></div>
+      </div>
+      <div class="section-label">최근 30일 ETA ±15분 적중률 추이</div>
+      <svg id="accChart" viewBox="0 0 560 200" style="width:100%;height:auto;margin-bottom:18px"></svg>
+      <div class="section-label">ETA 재계산 발생 사유 분포</div>
+      <div id="reasons"></div>
+    </div>
+  </div>
+</div>
+<div id="modalRoot"></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="static-flag.js"></script>
+<script src="sim-web.js"></script>
+<script src="vendor/mqtt/mqtt.min.js"></script>
+<script src="bus.js"></script>
+<script src="common.js"></script>
+<script>
+requireAcct();
+let map, inited = false, layers = {}, lastState = null;
+
+function initMap(st) {
+  if (!window.L) { // 지도 로드 실패(오프라인 등) — 관제 보드는 계속 동작
+    inited = true;
+    document.getElementById('map').innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-2);font-size:13px">지도 타일을 불러올 수 없습니다 (네트워크 확인)</div>';
+    return;
+  }
+  map = L.map('map', { attributionControl: false });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+  L.marker([st.mfc.pos.lat, st.mfc.pos.lng], {
+    icon: L.divIcon({ className: '', html: '<div class="mfc-marker">🏭</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+  }).addTo(map).bindTooltip('미트박스 성동 MFC');
+  const all = Object.values(st.deliveries).map((d) => [d.pos.lat, d.pos.lng]);
+  map.fitBounds(all, { padding: [36, 36] });
+  layers.stops = {}; layers.vehicles = {}; layers.routes = {};
+  inited = true;
+}
+
+function renderMap(st) {
+  if (!inited) initMap(st);
+  if (!map) return;
+  for (const v of st.vehicles) {
+    // 경로 (잔여 구간)
+    const pts = [];
+    if (v.state === 'RUN' || v.state === 'STOP') pts.push([v.pos.lat, v.pos.lng]);
+    for (let i = v.cursor; i < v.order.length; i++) {
+      const d = st.deliveries[v.order[i]];
+      pts.push([d.pos.lat, d.pos.lng]);
+    }
+    if (layers.routes[v.id]) layers.routes[v.id].setLatLngs(pts);
+    else layers.routes[v.id] = L.polyline(pts, { color: v.color, weight: 3, opacity: .65, dashArray: '6 6' }).addTo(map);
+
+    // 착지 마커
+    for (let i = 0; i < v.order.length; i++) {
+      const d = st.deliveries[v.order[i]];
+      const done = d.status === '배송 완료';
+      const html = `<div class="stop-marker ${done ? 'done' : ''}" style="${done ? '' : 'border-color:' + v.color}">${d.queuePos ?? (done ? '✓' : '·')}</div>`;
+      if (!layers.stops[d.id]) {
+        layers.stops[d.id] = L.marker([d.pos.lat, d.pos.lng], {
+          icon: L.divIcon({ className: '', html, iconSize: [22, 22], iconAnchor: [11, 11] }),
+        }).addTo(map).bindTooltip(`«${d.shop}» ${d.dong} · ${d.boxes}박스`);
+      } else layers.stops[d.id].setIcon(L.divIcon({ className: '', html, iconSize: [22, 22], iconAnchor: [11, 11] }));
+    }
+
+    // 차량 마커
+    if (v.state === 'RUN' || v.state === 'STOP' || v.state === 'DONE') {
+      const html = `<div class="veh-marker" style="border-color:${v.color}">🚚</div>`;
+      if (!layers.vehicles[v.id]) {
+        layers.vehicles[v.id] = L.marker([v.pos.lat, v.pos.lng], {
+          icon: L.divIcon({ className: '', html, iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 500,
+        }).addTo(map).bindTooltip(`${v.name} · ${v.driver}`);
+      } else layers.vehicles[v.id].setLatLng([v.pos.lat, v.pos.lng]);
+    }
+  }
+  // 교통 이슈
+  if (st.incident && !layers.incident) {
+    layers.incident = L.marker([st.incident.pos.lat, st.incident.pos.lng], {
+      icon: L.divIcon({ className: '', html: '<div class="incident-marker">⚠️</div>', iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 600,
+    }).addTo(map).bindTooltip(st.incident.name);
+  }
+  if (!st.incident && layers.incident) { layers.incident.remove(); layers.incident = null; }
+}
+
+// 탭
+document.querySelectorAll('.tabs button').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.tabbody').forEach((x) => x.hidden = x.id !== 'tab-' + b.dataset.tab);
+  };
+});
+
+function statusBadge(d) {
+  if (d.status === '배송 완료') return `<span class="badge green">완료${d.photo ? ' 📷' : ''}</span>`;
+  if (d.status === '인근 배송 중') return '<span class="badge red">인근 배송 중</span>';
+  if (d.status === 'N번째 순서 배송 예정') return `<span class="badge blue">${d.queuePos}번째 예정</span>`;
+  return `<span class="badge grey">${esc(d.status)}</span>`;
+}
+
+function showDetail(id) {
+  const d = lastState.deliveries[id];
+  if (!d) return;
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="modal-bg" onclick="if(event.target===this)this.remove()"><div class="modal">
+    <h3>«${esc(d.shop)}» ${esc(d.custName)}</h3>
+    <div style="font-size:12.5px;color:var(--ink-2);margin-bottom:12px">${esc(d.dong)} · ${d.boxes}박스 · ${esc(d.items)}</div>
+    <div class="section-label">상태 이력 (스캔 자동 전환)</div>
+    <div class="timeline">${d.history.map((h) =>
+      `<div class="tl-item done"><div class="tl-dot"></div><div class="tl-name">${esc(h.st)}</div><div class="tl-time">${esc(h.at)}</div></div>`
+    ).join('')}</div>
+    ${d.photo ? `<div class="photo-ph"><div class="door">🚪📦</div>문 앞 사진 1장 — 기사 앱에서 첨부됨</div>` : ''}
+    <button style="margin-top:14px;width:100%" onclick="this.closest('.modal-bg').remove()">닫기</button>
+  </div></div>`;
+}
+
+// 정확도 리포트 (1회 렌더)
+let reportDone = false;
+function renderReport(acc) {
+  if (reportDone) return; reportDone = true;
+  document.getElementById('accNow').textContent = acc.days[acc.days.length - 1] + '%';
+  document.getElementById('accStart').textContent = acc.days[0] + '%';
+  const W = 560, H = 200, P = 28, min = 55, max = 90;
+  const x = (i) => P + (i / (acc.days.length - 1)) * (W - P * 2);
+  const y = (v) => H - P - ((v - min) / (max - min)) * (H - P * 2);
+  const pts = acc.days.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  const ty = y(acc.target);
+  document.getElementById('accChart').innerHTML = `
+    <line x1="${P}" y1="${ty}" x2="${W - P}" y2="${ty}" stroke="#C0392F" stroke-dasharray="5 4" stroke-width="1.5"/>
+    <text x="${W - P}" y="${ty - 6}" text-anchor="end" font-size="11" fill="#C0392F">목표 ${acc.target}%</text>
+    <polyline points="${pts}" fill="none" stroke="#33608F" stroke-width="2.5"/>
+    <circle cx="${x(acc.days.length - 1)}" cy="${y(acc.days[acc.days.length - 1])}" r="4.5" fill="#33608F"/>
+    <text x="${P}" y="${H - 8}" font-size="11" fill="#5A6272">30일 전</text>
+    <text x="${W - P}" y="${H - 8}" text-anchor="end" font-size="11" fill="#5A6272">오늘</text>`;
+  document.getElementById('reasons').innerHTML = acc.reasons.map((r) =>
+    `<div class="reason"><span style="width:110px">${esc(r.label)}</span><div class="bar"><i style="width:${r.pct}%"></i></div><span class="pct">${r.pct}%</span></div>`
+  ).join('');
+}
+
+connect((st) => {
+  lastState = st;
+  document.getElementById('clock').textContent = st.clock;
+  document.getElementById('whoami').textContent = `${st.me.name} (관리자) — 전체 관제`;
+  document.getElementById('stDone').textContent = st.stats.done;
+  document.getElementById('stTotal').textContent = st.stats.total;
+  document.getElementById('stNotif').textContent = st.stats.notif;
+  document.getElementById('cntEv').textContent = st.events.length;
+  document.getElementById('cntNo').textContent = st.notifications.length;
+
+  const strip = document.getElementById('alertStrip');
+  if (st.incident) {
+    strip.hidden = false;
+    document.getElementById('alertText').textContent =
+      `교통 경보 ${st.incident.at} — ${st.incident.name} · ${st.incident.desc} · 성동 01호차 우회 경로 운행`;
+  } else strip.hidden = true;
+
+  try { renderMap(st); } catch (e) { console.error('map:', e); }
+
+  // 배송 현황 보드 (차량 → 배송 순서대로)
+  const rows = [];
+  for (const v of st.vehicles) {
+    v.order.forEach((id, i) => {
+      const d = st.deliveries[id];
+      rows.push(`<tr class="clickable" onclick="showDetail('${d.id}')">
+        <td><span class="badge" style="background:${v.color}1A;color:${v.color}">${esc(v.name)}</span></td>
+        <td class="mono">${i + 1}</td><td><b>${esc(d.shop)}</b></td><td>${esc(d.dong)}</td>
+        <td class="mono">${d.boxes}</td><td>${statusBadge(d)}</td>
+        <td class="mono">${d.eta ? esc(d.eta.label) : '—'}</td></tr>`);
+    });
+  }
+  document.getElementById('board').innerHTML = rows.join('');
+
+  document.getElementById('tab-events').innerHTML = st.events.map((e) =>
+    `<div class="ev ${e.level}"><span class="t">${esc(e.t)}</span><span class="txt">${esc(e.text)}</span></div>`
+  ).join('');
+
+  document.getElementById('tab-notifs').innerHTML = st.notifications.map((n) =>
+    `<div class="notif-row"><div class="hd"><span class="t">${esc(n.t)}</span><b>${esc(n.title)}</b>
+     <span class="badge amber">${esc(n.channel)}</span></div>
+     <div class="bd">${esc(n.shop)} ${esc(n.custName)} — ${esc(n.body)}</div></div>`
+  ).join('');
+
+  renderReport(st.accuracy);
+});
+</script>
+</body>
+</html>
