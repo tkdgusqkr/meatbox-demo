@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>미트박스 기사 — 배송 완료 체크</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="/common.css">
+<link rel="stylesheet" href="common.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C0392F">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 .prog{background:var(--ink);color:#fff;border:none;display:flex;align-items:center;gap:14px}
 .prog .num{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:500}
@@ -62,7 +65,10 @@
     </div>
   </div>
 </div>
-<script src="/common.js"></script>
+<script src="static-flag.js"></script>
+<script src="sim-web.js"></script>
+<script src="bus.js"></script>
+<script src="common.js"></script>
 <script>
 requireAcct();
 let currentDeliveryId = null, myVehicleId = null;

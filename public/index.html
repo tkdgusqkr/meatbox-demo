@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>미트박스 TMS 데모 — 계정 선택</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="/common.css">
+<link rel="stylesheet" href="common.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C0392F">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 .wrap{max-width:880px;margin:0 auto;padding:56px 20px 80px}
 .eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--accent);margin-bottom:12px}
@@ -37,16 +40,19 @@ h1{font-size:30px;font-weight:800}
   <div id="roles"></div>
   <p class="hint">시연 순서: <b>컨트롤러</b> 창에서 MFC 스캔 → 배송 출발 → 이벤트 주입 순으로 진행합니다. 상세 시나리오는 <span class="mono">docs/demo-scenario.md</span> 참고.</p>
 </div>
-<script src="/common.js"></script>
+<script src="static-flag.js"></script>
+<script src="sim-web.js"></script>
+<script src="bus.js"></script>
+<script src="common.js"></script>
 <script>
 const ROLE_META = {
-  customer: { label: '고객 (미트박스 앱)', page: '/customer.html' },
-  driver: { label: '기사 (배송 완료 체크)', page: '/driver.html' },
-  admin: { label: '관리자 (관제 센터)', page: '/admin.html' },
-  controller: { label: '시연 컨트롤러', page: '/controller.html' },
+  customer: { label: '고객 (미트박스 앱)', page: 'customer.html' },
+  driver: { label: '기사 (배송 완료 체크)', page: 'driver.html' },
+  admin: { label: '관리자 (관제 센터)', page: 'admin.html' },
+  controller: { label: '시연 컨트롤러', page: 'controller.html' },
 };
 const ROLE_NAMES = { customer: '고객', driver: '기사', admin: '관리자', controller: '컨트롤러' };
-fetch('/api/accounts').then(r => r.json()).then(list => {
+getAccounts().then(list => {
   const root = document.getElementById('roles');
   for (const role of ['customer', 'driver', 'admin', 'controller']) {
     const accts = list.filter(a => a.role === role);

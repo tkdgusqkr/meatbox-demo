@@ -3,12 +3,13 @@ const qs = new URLSearchParams(location.search);
 const ACCT = qs.get('acct');
 
 function requireAcct() {
-  if (!ACCT) location.href = '/';
+  if (!ACCT) location.href = './';
   return ACCT;
 }
 
-// SSE 연결: 서버가 계정 권한에 맞게 스코핑한 상태를 1초마다 내려준다
+// 상태 구독: 서버 모드는 SSE, 정적(서버리스) 모드는 브라우저 내 시뮬레이션(bus.js)
 function connect(onState) {
+  if (window.TMS_STATIC) return TMSBus.connect(ACCT, onState);
   const es = new EventSource('/events?acct=' + encodeURIComponent(ACCT));
   es.onmessage = (e) => {
     try { onState(JSON.parse(e.data)); } catch (err) { console.error(err); }
@@ -18,13 +19,28 @@ function connect(onState) {
 }
 
 async function cmd(command, args = {}) {
-  const r = await fetch('/api/cmd', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ acct: ACCT, cmd: command, ...args }),
-  });
-  const out = await r.json();
+  let out;
+  if (window.TMS_STATIC) {
+    out = await TMSBus.cmd(ACCT, command, args);
+  } else {
+    const r = await fetch('/api/cmd', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acct: ACCT, cmd: command, ...args }),
+    });
+    out = await r.json();
+  }
   if (!out.ok && out.msg) toast(out.msg);
   return out;
+}
+
+async function getAccounts() {
+  if (window.TMS_STATIC) return TMSBus.accounts();
+  return (await fetch('/api/accounts')).json();
+}
+
+// PWA: 정적 배포에서만 서비스워커 등록 (로컬 서버 개발 시 캐시 간섭 방지)
+if (window.TMS_STATIC && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 // 간단 토스트

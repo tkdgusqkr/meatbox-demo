@@ -5,8 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>미트박스 — 내 배송 조회</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="/common.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#C0392F">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 .eta-card{background:var(--accent);color:#fff;border:none;position:relative;overflow:hidden}
 .eta-card .lbl{font-size:11.5px;font-weight:700;letter-spacing:.08em;opacity:.85}
@@ -65,8 +68,11 @@
     </div>
   </div>
 </div>
-<script src="/vendor/leaflet/leaflet.js"></script>
-<script src="/common.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="static-flag.js"></script>
+<script src="sim-web.js"></script>
+<script src="bus.js"></script>
+<script src="common.js"></script>
 <script>
 requireAcct();
 const STATUSES = ['주문 접수','결제 완료','피킹 중','라벨 부착','상차 대기','배송 출발','N번째 순서 배송 예정','인근 배송 중','배송 완료'];

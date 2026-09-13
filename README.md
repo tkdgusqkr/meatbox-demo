@@ -3,13 +3,26 @@
 「미트박스 TMS 역할 요약」 요구사항 중 **② 고객 배송 트래킹**과 **③ 다이나믹 ETA**를
 멀티 계정(고객·기사·관리자) 웹 데모로 재현한다. 시나리오 전문은 [`docs/demo-scenario.md`](docs/demo-scenario.md).
 
-## 실행
+## 실행 — 두 가지 모드
+
+**① 배포판 (무료·서버리스, GitHub Pages)** — https://tkdgusqkr.github.io/meatbox-demo/
+
+시뮬레이션이 브라우저 안에서 구동되고, **같은 브라우저의 여러 창**이 BroadcastChannel로 실시간 동기화된다.
+설치 없이 링크만 열면 되고, 휴대폰·데스크톱에서 "홈 화면에 추가"로 **웹앱(PWA) 설치**도 가능하다.
+재배포: `tools/deploy-pages.sh` (public/을 gh-pages 브랜치로 발행).
+
+> 제약: 서버가 없으므로 **다른 기기·다른 브라우저 간에는 동기화되지 않는다** (창 여러 개는 완벽 동기화).
+> 여러 기기로 시연하려면 아래 서버 모드를 사용한다. 첫 창(리더)이 시뮬레이션을 구동하므로 컨트롤러 창을 먼저 열고 유지하는 것을 권장 — 리더 창을 닫으면 다른 창이 승계하며 시뮬레이션이 초기화된다.
+
+**② 서버 모드 (여러 기기 동기화)**
 
 ```bash
-node server.js   # Node 18+ · 외부 패키지 설치 불필요
+node server.js   # Node 18+ · 외부 패키지 설치 불필요 → http://localhost:3000
 ```
 
-→ http://localhost:3000 접속 후 계정 선택. **브라우저 창을 여러 개 띄워 서로 다른 계정으로 동시 접속**하는 것이 시연 포인트다.
+같은 네트워크의 휴대폰·노트북이 서버 IP로 접속하면 기기 간에도 실시간 동기화된다.
+
+두 모드 모두 접속 후 계정을 선택하며, **창을 여러 개 띄워 서로 다른 계정으로 동시 접속**하는 것이 시연 포인트다.
 
 ## 계정
 
@@ -34,10 +47,13 @@ node server.js   # Node 18+ · 외부 패키지 설치 불필요
 ## 구조
 
 ```
-server.js          # 의존성 없는 Node http 서버 · SSE 브로드캐스트 · 역할별 데이터 스코핑
-lib/data.js        # 계정 6개 · 차량 2대 · 배송 22건(성동 12·광진 10, 실좌표)
-lib/sim.js         # 시뮬레이션 엔진: 9단계 상태 · ETA 산출/재계산 · 알림 · 이벤트 로그
-public/            # 화면 5종 (계정 선택 · 고객 · 기사 · 관제 · 컨트롤러)
+server.js            # 의존성 없는 Node http 서버 · SSE 브로드캐스트 · 역할별 데이터 스코핑
+lib/data.js          # 계정 6개 · 차량 2대 · 배송 22건(성동 12·광진 10, 실좌표)
+lib/sim.js           # 시뮬레이션 엔진: 9단계 상태 · ETA 산출/재계산 · 알림 · 이벤트 로그
+public/              # 화면 5종 (계정 선택 · 고객 · 기사 · 관제 · 컨트롤러) + PWA(manifest·sw)
+public/sim-web.js    # lib/ 브라우저 번들 (자동 생성 — tools/gen-sim-web.js)
+public/bus.js        # 정적 모드: 브라우저 내 시뮬레이션 리더 선출 + BroadcastChannel 동기화
+tools/deploy-pages.sh  # GitHub Pages(gh-pages 브랜치) 배포 스크립트
 docs/demo-scenario.md
 ```
 
