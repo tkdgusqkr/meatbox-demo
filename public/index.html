@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>미트박스 TMS 데모 — 계정 선택</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/common.css">
+<style>
+.wrap{max-width:880px;margin:0 auto;padding:56px 20px 80px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--accent);margin-bottom:12px}
+h1{font-size:30px;font-weight:800}
+.lede{color:var(--ink-2);margin:14px 0 36px;max-width:56ch}
+.role-title{font-size:13px;font-weight:800;letter-spacing:.06em;color:var(--ink-2);margin:26px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.acct{
+  display:flex;flex-direction:column;gap:6px;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+  cursor:pointer;transition:border-color .15s, box-shadow .15s;
+}
+.acct:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(192,57,47,.12)}
+.acct .nm{font-family:"Gothic A1",sans-serif;font-weight:800;font-size:16px}
+.acct .ds{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.acct .rl{font-size:11px;font-weight:700;border-radius:6px;padding:1px 8px;align-self:flex-start}
+.rl.customer{background:var(--accent-soft);color:var(--accent)}
+.rl.driver{background:var(--green-soft);color:var(--green)}
+.rl.admin{background:var(--blue-soft);color:var(--blue)}
+.rl.controller{background:var(--surface-2);color:var(--ink-2)}
+.hint{margin-top:36px;font-size:13px;color:var(--ink-2);border-left:3px solid var(--blue);padding-left:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">MEATBOX TMS DEMO</div>
+  <h1>미트박스 배송 트래킹 &amp; 다이나믹 ETA</h1>
+  <p class="lede">계정을 선택해 접속하세요. 고객은 본인 주문만, 기사는 본인 배차만 보이고, 관리자는 전체를 실제 지도에서 관제합니다. 창을 여러 개 띄워 서로 다른 계정으로 동시에 접속해 보세요.</p>
+  <div id="roles"></div>
+  <p class="hint">시연 순서: <b>컨트롤러</b> 창에서 MFC 스캔 → 배송 출발 → 이벤트 주입 순으로 진행합니다. 상세 시나리오는 <span class="mono">docs/demo-scenario.md</span> 참고.</p>
+</div>
+<script src="/common.js"></script>
+<script>
+const ROLE_META = {
+  customer: { label: '고객 (미트박스 앱)', page: '/customer.html' },
+  driver: { label: '기사 (배송 완료 체크)', page: '/driver.html' },
+  admin: { label: '관리자 (관제 센터)', page: '/admin.html' },
+  controller: { label: '시연 컨트롤러', page: '/controller.html' },
+};
+const ROLE_NAMES = { customer: '고객', driver: '기사', admin: '관리자', controller: '컨트롤러' };
+fetch('/api/accounts').then(r => r.json()).then(list => {
+  const root = document.getElementById('roles');
+  for (const role of ['customer', 'driver', 'admin', 'controller']) {
+    const accts = list.filter(a => a.role === role);
+    if (!accts.length) continue;
+    const h = document.createElement('div');
+    h.className = 'role-title';
+    h.textContent = ROLE_META[role].label;
+    root.appendChild(h);
+    const g = document.createElement('div');
+    g.className = 'grid';
+    for (const a of accts) {
+      const b = document.createElement('button');
+      b.className = 'acct';
+      b.innerHTML = `<span class="rl ${role}">${ROLE_NAMES[role]}</span><span class="nm"></span><span class="ds"></span>`;
+      b.querySelector('.nm').textContent = a.shop ? `${a.name} · ${a.shop}` : a.name;
+      b.querySelector('.ds').textContent = a.desc || '';
+      b.onclick = () => location.href = ROLE_META[role].page + '?acct=' + a.id;
+      g.appendChild(b);
+    }
+    root.appendChild(g);
+  }
+});
+</script>
+</body>
+</html>

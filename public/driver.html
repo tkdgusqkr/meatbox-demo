@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>미트박스 기사 — 배송 완료 체크</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/common.css">
+<style>
+.prog{background:var(--ink);color:#fff;border:none;display:flex;align-items:center;gap:14px}
+.prog .num{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:500}
+.prog .bar{flex:1;height:8px;background:rgba(255,255,255,.2);border-radius:99px;overflow:hidden}
+.prog .bar i{display:block;height:100%;background:var(--green);border-radius:99px;transition:width .4s}
+.stop{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.stop.done{opacity:.55}
+.stop.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.stop .no{width:28px;height:28px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:700;flex:none}
+.stop.done .no{background:var(--green);color:#fff}
+.stop.active .no{background:var(--accent);color:#fff}
+.stop .info{flex:1;min-width:0}
+.stop .nm{font-weight:800;font-size:13.5px}
+.stop .sub{font-size:11.5px;color:var(--ink-2)}
+.stop .st{font-size:11px}
+.complete-box{border:2px solid var(--accent);border-radius:14px;padding:14px 16px;background:var(--accent-soft)}
+.complete-box .ttl{font-weight:800;font-size:14px;margin-bottom:4px}
+.complete-box .sub{font-size:12.5px;color:var(--ink-2);margin-bottom:10px}
+.photo-toggle{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;user-select:none}
+.photo-toggle input{width:17px;height:17px;accent-color:var(--accent)}
+.btn-complete{width:100%;padding:13px;font-size:15px}
+.stops{display:flex;flex-direction:column;gap:8px}
+</style>
+</head>
+<body>
+<div class="phone-wrap">
+  <div class="phone">
+    <div class="phone-head">
+      <span class="brand">MEAT<b>BOX</b> <span style="font-size:12px;color:var(--ink-2)">기사용</span></span>
+      <span class="clock mono" id="clock" style="margin-left:auto;background:var(--surface-2);border-radius:8px;padding:2px 8px;font-size:13px">--:--</span>
+    </div>
+    <div class="phone-body">
+      <div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center">
+        <b id="whoami">—</b><span class="badge grey" id="region">—</span>
+        <span class="badge blue" id="vstate" style="margin-left:auto">대기</span>
+      </div>
+
+      <div class="card prog">
+        <span>완료</span><span class="num" id="progNum">0/0</span>
+        <div class="bar"><i id="progBar" style="width:0%"></i></div>
+      </div>
+
+      <div class="complete-box" id="completeBox" hidden>
+        <div class="ttl" id="cbTitle">—</div>
+        <div class="sub" id="cbSub">—</div>
+        <label class="photo-toggle"><input type="checkbox" id="photoChk" checked> 문 앞 사진 첨부</label>
+        <button class="primary btn-complete" id="btnComplete">하차 완료 체크</button>
+      </div>
+
+      <div>
+        <div class="section-label">오늘의 배송 (내 배차만 표시)</div>
+        <div class="stops" id="stops"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/common.js"></script>
+<script>
+requireAcct();
+let currentDeliveryId = null, myVehicleId = null;
+
+document.getElementById('btnComplete').onclick = async () => {
+  if (!currentDeliveryId) return;
+  const photo = document.getElementById('photoChk').checked;
+  await cmd('complete', { vehicleId: myVehicleId, deliveryId: currentDeliveryId, photo });
+};
+
+connect((st) => {
+  myVehicleId = st.vehicle.id;
+  document.getElementById('clock').textContent = st.clock;
+  document.getElementById('whoami').textContent = `${st.me.name} · ${st.vehicle.name}`;
+  document.getElementById('region').textContent = st.vehicle.region;
+  const vs = document.getElementById('vstate');
+  const stateLabel = { MFC: 'MFC 대기', RUN: '이동 중', STOP: '하차 중', DONE: '운행 종료' }[st.vehicle.state];
+  vs.textContent = stateLabel;
+  vs.className = 'badge ' + (st.vehicle.state === 'STOP' ? 'red' : st.vehicle.state === 'DONE' ? 'green' : 'blue');
+
+  document.getElementById('progNum').textContent = `${st.vehicle.done}/${st.vehicle.total}`;
+  document.getElementById('progBar').style.width = (st.vehicle.done / st.vehicle.total * 100) + '%';
+
+  // 현재 하차 중인 착지 → 완료 체크 박스
+  const cur = st.stops.find((s) => s.current);
+  const box = document.getElementById('completeBox');
+  if (cur) {
+    box.hidden = false;
+    currentDeliveryId = cur.deliveryId;
+    document.getElementById('cbTitle').textContent = `«${cur.shop}» ${cur.dong} · ${cur.boxes}박스`;
+    document.getElementById('cbSub').textContent = `${cur.items} — 하차 후 완료 체크하세요`;
+  } else { box.hidden = true; currentDeliveryId = null; }
+
+  // 배송 리스트
+  document.getElementById('stops').innerHTML = st.stops.map((s) => {
+    const done = s.status === '배송 완료';
+    const cls = done ? 'done' : s.current ? 'active' : '';
+    const badge = done
+      ? `<span class="badge green st">완료${s.photo ? ' 📷' : ''}</span>`
+      : s.current ? '<span class="badge red st">하차 중</span>'
+      : s.upcoming ? '<span class="badge blue st">이동 중</span>'
+      : '<span class="badge grey st">대기</span>';
+    return `<div class="stop ${cls}"><div class="no">${s.pos}</div>
+      <div class="info"><div class="nm">${esc(s.shop)} <span style="font-weight:400;color:var(--ink-2)">${esc(s.custName)}</span></div>
+      <div class="sub">${esc(s.dong)} · ${s.boxes}박스 · ${esc(s.items)}</div></div>${badge}</div>`;
+  }).join('');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "meatbox-tms-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "미트박스 TMS 데모 — 고객 배송 트래킹 & 다이나믹 ETA (멀티 계정 시뮬레이션)",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
